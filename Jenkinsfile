@@ -1,5 +1,8 @@
 pipeline {
-    agent any
+    agent {
+label 'docker'
+
+}
     stages {
         stage('Checkout') {
             steps {
@@ -7,11 +10,8 @@ pipeline {
             }
         }
         stage('Build') {
-            agent {
-                docker {
                     image 'docker:latest'
                     args '-v /var/run/docker.sock:/var/run/docker.sock'
-                }
             }
             steps {
                 script {
@@ -19,13 +19,9 @@ pipeline {
                 }
             }
         }
-        stage('Push to ECR') {
-            agent {
-                docker {
+        stage('Push to ECR') { 
                     image 'docker:latest'
                     args '-v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
             steps {
                 script {
                     sh "docker push 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1"
