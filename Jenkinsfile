@@ -1,9 +1,6 @@
 pipeline {
     agent {
-        docker {
-            image 'docker:latest'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'  // This allows Docker commands to interact with the Docker daemon
-        }
+        label 'docker-node'  // Use a label that matches a Jenkins agent with Docker installed
     }
 
     environment {
