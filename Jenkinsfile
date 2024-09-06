@@ -1,8 +1,5 @@
 pipeline {
-    agent {
-label 'docker'
-
-}
+    agent any
     stages {
         stage('Checkout') {
             steps {
@@ -10,21 +7,22 @@ label 'docker'
             }
         }
         stage('Build') {
-                    image 'docker:latest'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock'
-            }
             steps {
                 script {
-                    sh "docker build -t 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1 ."
+                    // Use a Docker container to build the image
+                    docker.image('docker:latest').inside {
+                        sh "docker build -t 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1 ."
+                    }
                 }
             }
         }
-        stage('Push to ECR') { 
-                    image 'docker:latest'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock'
+        stage('Push to ECR') {
             steps {
                 script {
-                    sh "docker push 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1"
+                    // Use a Docker container to push the image
+                    docker.image('docker:latest').inside {
+                        sh "docker push 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1"
+                    }
                 }
             }
         }
