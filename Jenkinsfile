@@ -1,37 +1,63 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'docker:latest'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'  // This allows Docker commands to interact with the Docker daemon
+        }
+    }
+
+    environment {
+        ECR_REPO = '905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops'
+        GITHUB_REPO = 'https://github.com/shashi26g/spring-boot-war-example.git'
+        DOCKER_IMAGE_NAME = 'Dockerfile'
+        AWS_REGION = 'ap-south-1'
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/shashi26g/spring-boot-war-example.git'
+                git url: "${GITHUB_REPO}", branch: 'main'
             }
         }
+
         stage('Build') {
             steps {
                 script {
-                    // Use a Docker container to build the image
-                    docker.image('docker:latest').inside {
-                        sh "docker build -t 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1 ."
-                    }
+                    // Login to ECR
+                    sh 'aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPO}'
+                    
+                    // Build Docker image
+                    sh 'docker build -t ${DOCKER_IMAGE_NAME} .'
                 }
             }
         }
-        stage('Push to ECR') {
+
+        stage('Push') {
             steps {
                 script {
-                    // Use a Docker container to push the image
-                    docker.image('docker:latest').inside {
-                        sh "docker push 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1"
-                    }
+                    // Tag Docker image
+                    sh 'docker tag ${DOCKER_IMAGE_NAME}:latest ${ECR_REPO}:${BUILD_ID}'
+                    
+                    // Push Docker image to ECR
+                    sh 'docker push ${ECR_REPO}:${BUILD_ID}'
                 }
             }
         }
+
         stage('Deploy') {
             steps {
                 script {
-                    sh "docker run -itd -p 8080:8080 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1"
+                    // Deploy the Docker image to the Docker server
+                    // Assuming you have a Docker server and it's set up to pull from ECR
+                    sh 'docker run -d --name ${DOCKER_IMAGE_NAME} ${ECR_REPO}:${BUILD_ID}'
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
         }
     }
 }
