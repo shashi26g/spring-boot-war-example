@@ -1,70 +1,35 @@
 pipeline {
-    agent any
-
-    environment {
-        AWS_ACCOUNT_ID = '905418166826'
-        AWS_REGION = 'ap-south-1'
-        IMAGE_REPO_NAME = 'shashi26g/ecrdevops'
-        IMAGE_TAG = '1'
-        ECR_REPO_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO_NAME}"
+    agent {
+        docker {
+            image 'docker:latest'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
     }
-
     stages {
-
         stage('Checkout') {
             steps {
-                // Checkout the new GitHub repository
                 git branch: 'main', url: 'https://github.com/shashi26g/spring-boot-war-example.git'
             }
         }
-
         stage('Build') {
             steps {
                 script {
-                    // Build Docker image
-                    sh "docker build -t ${ECR_REPO_URI}:${IMAGE_TAG} ."
+                    sh "docker build -t 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1 ."
                 }
             }
         }
-
-        stage('ECR Login') {
+        stage('Push to ECR') {
             steps {
                 script {
-                    // ECR login using AWS CLI
-                    sh '''
-                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPO_URI}
-                    '''
+                    sh "docker push 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1"
                 }
             }
         }
-
-        stage('Push') {
-            steps {
-                script {
-                    // Push Docker image to ECR
-                    sh "docker push ${ECR_REPO_URI}:${IMAGE_TAG}"
-                }
-            }
-        }
-
         stage('Deploy') {
             steps {
                 script {
-                    // Stop and remove any existing container with the same name
-                    sh "docker stop ecrdevops || true && docker rm ecrdevops || true"
-
-                    // Run new container
-                    sh "docker run -itd --name ecrdevops -p 8080:8080 ${ECR_REPO_URI}:${IMAGE_TAG}"
+                    sh "docker run -itd -p 8080:8080 905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops:1"
                 }
-            }
-        }
-    }
-
-    post {
-        always {
-            script {
-                // Cleanup unused Docker images
-                sh "docker system prune -f"
             }
         }
     }
