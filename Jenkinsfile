@@ -1,8 +1,7 @@
 pipeline {
     agent {
-label 'docker'
-
-}
+        label'docker'
+    }
 
     environment {
         DOCKER_IMAGE_NAME = 'my-docker-image'
@@ -30,11 +29,15 @@ label 'docker'
         stage('Push') {
             steps {
                 script {
-                    // Log in to ECR before pushing the image to avoid expired token issue
+                    // Log in to ECR
                     sh '''
                     aws ecr get-login-password --region ${ECR_REGION} | docker login --username AWS --password-stdin ${ECR_REPOSITORY_URL}
-                    docker tag ${DOCKER_IMAGE_NAME} ${ECR_REPOSITORY_URL}/${DOCKER_IMAGE_NAME}:latest
-                    docker push ${ECR_REPOSITORY_URL}/${DOCKER_IMAGE_NAME}:latest
+                    
+                    # Tag the image with the repository URL (no extra subfolder)
+                    docker tag ${DOCKER_IMAGE_NAME} ${ECR_REPOSITORY_URL}:latest
+                    
+                    # Push the Docker image
+                    docker push ${ECR_REPOSITORY_URL}:latest
                     '''
                 }
             }
@@ -45,16 +48,16 @@ label 'docker'
                 script {
                     // Deploy the Docker image to your Docker server
                     sh '''
-                    docker pull ${ECR_REPOSITORY_URL}/${DOCKER_IMAGE_NAME}:latest
+                    docker pull ${ECR_REPOSITORY_URL}:latest
                     docker stop my-container || true
                     docker rm my-container || true
-                    docker run -d --name my-container ${ECR_REPOSITORY_URL}/${DOCKER_IMAGE_NAME}:latest
+                    docker run -d --name my-container ${ECR_REPOSITORY_URL}:latest
                     '''
                 }
             }
         }
     }
-    
+
     post {
         failure {
             echo 'Pipeline failed'
