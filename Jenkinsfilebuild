@@ -1,0 +1,87 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE_NAME = 'my-docker-image'
+        ECR_REPOSITORY_URL = '905418166826.dkr.ecr.ap-south-1.amazonaws.com/shashi26g/ecrdevops'
+        ECR_REGION = 'ap-south-1'
+        CONTAINER_NAME = 'my-container'
+        WEBAPPS_DIR = '/usr/local/tomcat/webapps'  // Adjust based on your container
+        SONARQUBE_URL = 'http://sonarqube.example.com'  // SonarQube server URL
+        SONAR_PROJECT_KEY = 'my-project'  // SonarQube project key
+        JFROG_REPO = 'my-jfrog-repo'  // JFrog Artifactory repository
+        JFROG_URL = 'https://jfrog.example.com'  // JFrog Artifactory URL
+        JFROG_CRED = 'jfrog-credentials'  // Jenkins credential ID for JFrog
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout source code from Git
+                git 'https://github.com/shashi26g/spring-boot-war-example.git'
+            }
+        }
+
+        stage('Parallel Build Jobs') {
+            parallel {
+                stage('Docker Build & Push') {
+                    steps {
+                        script {
+                            // Log in to ECR, build Docker image, tag, and push it
+                            sh '''
+                            aws ecr get-login-password --region ${ECR_REGION} | docker login --username AWS --password-stdin ${ECR_REPOSITORY_URL}
+                            docker build -t ${DOCKER_IMAGE_NAME} .
+                            docker tag ${DOCKER_IMAGE_NAME} ${ECR_REPOSITORY_URL}:latest
+                            docker push ${ECR_REPOSITORY_URL}:latest
+                            '''
+                        }
+                    }
+                }
+
+                stage('Maven Build') {
+                    steps {
+                        script {
+                            // Run Maven build to generate WAR file
+                            sh 'mvn clean package'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('SonarQube Scan') {
+            steps {
+                script {
+                    // Use catchError to continue even if SonarQube scan fails
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        withSonarQubeEnv('SonarQube') {  // SonarQube server configured in Jenkins
+                            sh 'mvn sonar:sonar -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=${SONARQUBE_URL}'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Artifact Upload to JFrog') {
+            steps {
+                script {
+                    // Use catchError to continue even if JFrog upload fails
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        // Upload the WAR file to JFrog Artifactory
+                        sh '''
+                        jfrog rt u target/*.war ${JFROG_REPO}/my-app/ --url=${JFROG_URL} --user=<user> --password=<password>
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Container') {
+            steps {
+                script {
+                    // Pull Docker image and run the container
+                    sh '''
+                    docker pull ${ECR_REPOSITORY_URL}:latest
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+                    docker run
